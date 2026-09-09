@@ -31,13 +31,34 @@ erp_customize_crm  ──depends──►  crm
 |---|---|---|
 | `crm`, `sale`, `account`, `sale_crm` | Odoo Community (có sẵn trong image) | Phễu bán hàng, báo giá/đơn hàng, hoá đơn — và cầu nối Opportunity → Quotation |
 | `erp_customize_base` | Tự viết | Mở rộng danh bạ (`res.partner`) — nền dùng chung cho mọi phân hệ khác |
-| `erp_customize_crm` | Tự viết | Tuỳ biến trên `crm.lead` — hiện có: số ngày đọng ở giai đoạn hiện tại |
+| `erp_customize_crm` | Tự viết | Cấu hình + tuỳ biến `crm.lead` (chi tiết ngay dưới) |
 
-Vòng khép kín có sẵn **không cần viết gì thêm**: tạo Lead → chuyển Opportunity
-→ Won → nút "Chuyển thành báo giá" (từ `sale_crm`) → Quotation → Confirm →
-Create Invoice. Việc của các module tự viết là thêm phần CRM chuẩn **không
-có sẵn** cho đúng quy trình bán hàng thật của mình (giai đoạn riêng, trường
-dữ liệu riêng, cảnh báo riêng).
+Vòng khép kín có sẵn **không cần viết gì thêm**: Lead → Opportunity → Won →
+nút "Chuyển thành báo giá" (từ `sale_crm`) → Quotation → Confirm → Create
+Invoice.
+
+## Quyết định: dựa vào CRM tiên tiến nào, tận dụng gì, thêm gì
+
+So với Salesforce/HubSpot/Pipedrive trước khi viết thêm bất kỳ dòng nào, để
+khỏi làm lại thứ Odoo Community đã có (và thường làm tệ hơn bản gốc):
+
+| Tính năng "CRM tiên tiến" | Trong Odoo Community | Việc đã làm |
+|---|---|---|
+| Cảnh báo deal đọng lâu một giai đoạn (rotting — nổi tiếng ở Pipedrive) | **Có sẵn** (`crm.stage.rotting_threshold_days`, hiện ngay trên statusbar) nhưng **mặc định TẮT** (0 ở mọi giai đoạn) | Bật với ngưỡng 7/14/21 ngày theo 3 giai đoạn đầu — không viết field riêng |
+| Chấm điểm lead tự động (lead scoring — Salesforce/HubSpot tính phí riêng) | **Có sẵn miễn phí**, học bằng Naive Bayes từ lịch sử thắng/thua | Không cần làm gì, chỉ cần đủ dữ liệu lịch sử để nó học |
+| Phát hiện lead trùng lặp | **Có sẵn** (theo email/SĐT/công ty, smart button trên form) | Không cần làm gì |
+| Phễu Lead → Opportunity 2 bước (Salesforce Lead object, HubSpot lifecycle stage) | Có sẵn nhưng **mặc định TẮT** — Odoo đi thẳng vào Opportunity | Bật (`group_use_lead`) — khớp cách CRM tiên tiến tách lead thô khỏi cơ hội đã xác nhận |
+| Người giới thiệu cụ thể (referral) | **KHÔNG có** — kể cả CRM tiên tiến, UTM chỉ ghi được *kênh* marketing, không ghi được *người* | Thêm field `referred_by_partner_id` trên `crm.lead` |
+
+Hai mục đầu (rotting threshold, bật phễu Lead) nằm trong `__init__.py` qua
+`post_init_hook` — chạy bằng ORM chứ không phải XML `<record>`, vì bản ghi
+gốc của module `crm` có thể mang `noupdate="1"` khiến ghi đè qua XML data bị
+bỏ qua trong im lặng lúc cài.
+
+**Cố ý CHƯA bật:** Recurring Revenue (MRR) và Rule-based Assignment — cả hai
+đều có sẵn nhưng là quyết định **đặc thù mô hình kinh doanh** (có bán theo
+gói định kỳ không? cơ cấu đội sale thế nào?), không phải điều "CRM tiên
+tiến nào cũng nên bật mặc định". Bật ở Settings khi có câu trả lời thật.
 
 ## Cấu trúc
 
@@ -63,7 +84,7 @@ trường/logic. Hai ví dụ đang có trong repo:
 - `erp_customize_base/models/res_partner.py` (`_inherit = 'res.partner'`) +
   view kế thừa `base.view_partner_form` bằng `xpath`
 - `erp_customize_crm/models/crm_lead.py` (`_inherit = 'crm.lead'`, thêm
-  `days_in_stage`) + view kế thừa `crm.crm_lead_view_form`
+  `referred_by_partner_id`) + view kế thừa `crm.crm_lead_view_form`
 
 Chỉ tạo **model mới hoàn toàn** khi nghiệp vụ chưa tồn tại trong Community
 (ví dụ một quy trình duyệt nội bộ đặc thù không map được vào Lead/Order nào).

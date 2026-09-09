@@ -2,15 +2,14 @@
 <odoo>
     <!-- Kế thừa form Cơ hội gốc (crm.crm_lead_view_form). Chèn field mới
          ngay sau partner_id trong group "opportunity_partner" (chỉ hiện
-         khi type == 'opportunity', đúng ngữ cảnh cần theo dõi độ đọng
-         theo giai đoạn) — không sửa view gốc. -->
+         khi type == 'opportunity') — không sửa view gốc. -->
     <record id="crm_lead_view_form_inherit_erp_customize" model="ir.ui.view">
         <field name="name">crm.lead.form.inherit.erp.customize</field>
         <field name="model">crm.lead</field>
         <field name="inherit_id" ref="crm.crm_lead_view_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='partner_id']" position="after">
-                <field name="days_in_stage"/>
+                <field name="referred_by_partner_id"/>
             </xpath>
         </field>
     </record>
