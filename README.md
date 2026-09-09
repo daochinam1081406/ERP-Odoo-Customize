@@ -35,6 +35,27 @@ docker-compose.yml
 | `make psql` | vào psql của DB |
 | `make update MODULE=<tên> DB=<db>` | nâng cấp một module sau khi sửa code |
 
+## Luồng nhánh (Git flow)
+
+Bốn nhánh dài hạn, promote một chiều — chưa có production thật nhưng dựng
+sẵn để không phải đổi thói quen khi có:
+
+```
+feature/* ──► main ──► develop ──► staging ──► production
+```
+
+| Nhánh | Vai trò |
+|---|---|
+| `main` | Nhánh phát triển chính — mọi PR từ `feature/*` gộp vào đây |
+| `develop` | Bản build luôn mới nhất, môi trường dev dùng chung |
+| `staging` | Diễn tập trước khi lên thật — chỉ nhận merge từ `develop` |
+| `production` | Đang chạy thật — chỉ nhận merge từ `staging`, không commit thẳng |
+
+Quy tắc: **không commit thẳng vào `develop`/`staging`/`production`** —
+luôn merge/PR từ nhánh trước nó trong chuỗi. Branch protection cho ba nhánh
+này cần bật thủ công trên GitHub (Settings → Branches) vì máy hiện tại
+không có `gh` CLI đã đăng nhập.
+
 ## Thêm module mới
 
 Tạo thư mục mới trong `addons/`, theo đúng bố cục Odoo chuẩn
