@@ -1,0 +1,15 @@
+# ── Python / Odoo ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ── Runtime / secrets ───────────────────────────────────────────
+.env
+*.log
+filestore/
+sessions/
+
+# ── OS / editor ─────────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
