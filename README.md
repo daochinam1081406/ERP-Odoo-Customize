@@ -25,6 +25,32 @@ config/
 docker-compose.yml
 ```
 
+## Cách phát triển trên nền Community
+
+Image `odoo:19.0` đã có sẵn TOÀN BỘ mã nguồn Community bên trong container
+(`res.partner`, `sale.order`, `product.template`, `account.move`...).
+**Không bao giờ sửa trực tiếp core** — luôn viết addon module trong
+`addons/` rồi Odoo nạp chồng lên lúc chạy. Hai cách:
+
+1. **Kế thừa model/view có sẵn** — dùng khi Community đã có sẵn khái niệm,
+   chỉ cần thêm trường/logic. Ví dụ đã có trong `erp_customize_base`:
+   `models/res_partner.py` (`_inherit = 'res.partner'`) +
+   `views/res_partner_views.xml` (kế thừa `base.view_partner_form` bằng
+   `xpath`, chèn thêm một trường mà không đụng file gốc).
+2. **Tạo model mới hoàn toàn** — dùng khi nghiệp vụ chưa tồn tại trong
+   Community. Ví dụ: `models/demo_item.py`.
+
+**Đọc mã nguồn gốc để biết field/view nào mà kế thừa** — không cần clone
+vào repo này:
+- Duyệt trực tiếp trên [github.com/odoo/odoo, nhánh `19.0`](https://github.com/odoo/odoo/tree/19.0/addons)
+- Hoặc đọc ngay trong container đang chạy:
+  ```bash
+  docker compose exec odoo find /usr/lib/python3/dist-packages/odoo/addons/base -name "*.py"
+  docker compose exec odoo cat /usr/lib/python3/dist-packages/odoo/addons/base/models/res_partner.py
+  ```
+- `make shell` mở Odoo shell (Python + ORM sống) để tự kiểm tra field/method
+  của bất kỳ model nào: `env['res.partner']._fields.keys()`
+
 ## Lệnh hay dùng
 
 | Lệnh | Việc |
