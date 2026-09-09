@@ -4,6 +4,9 @@ Kho tuỳ biến trên nền **Odoo 19.0 Community**, chạy qua Docker image ch
 (`odoo:19.0`) — **không vendor source Odoo**, chỉ giữ phần module tuỳ biến ở
 `addons/`. Muốn nâng cấp core thì chỉ cần đổi tag image.
 
+**Trọng tâm hệ thống: CRM**, khép vòng sang Sales và Invoicing (không dừng ở
+phễu bán hàng — Won phải đi tới được hoá đơn). Xem [Ngăn xếp module](#ngăn-xếp-module).
+
 ## Chạy thử
 
 ```bash
@@ -13,13 +16,35 @@ make logs                 # theo dõi log lúc khởi tạo lần đầu
 ```
 
 Mở `http://localhost:8069` → tạo database mới → cài module **ERP Customize —
-Base** (`erp_customize_base`) từ Apps để kiểm tra mọi thứ chạy đúng.
+CRM** (`erp_customize_crm`) từ Apps — nó tự kéo theo `crm`, `sale_crm`
+(→ `sale`, `account`) và `erp_customize_base`.
+
+## Ngăn xếp module
+
+```
+erp_customize_crm  ──depends──►  crm
+                    ──depends──►  sale_crm  ──depends──►  sale ──► account
+                    ──depends──►  erp_customize_base  ──depends──►  base
+```
+
+| Module | Của ai | Vai trò |
+|---|---|---|
+| `crm`, `sale`, `account`, `sale_crm` | Odoo Community (có sẵn trong image) | Phễu bán hàng, báo giá/đơn hàng, hoá đơn — và cầu nối Opportunity → Quotation |
+| `erp_customize_base` | Tự viết | Mở rộng danh bạ (`res.partner`) — nền dùng chung cho mọi phân hệ khác |
+| `erp_customize_crm` | Tự viết | Tuỳ biến trên `crm.lead` — hiện có: số ngày đọng ở giai đoạn hiện tại |
+
+Vòng khép kín có sẵn **không cần viết gì thêm**: tạo Lead → chuyển Opportunity
+→ Won → nút "Chuyển thành báo giá" (từ `sale_crm`) → Quotation → Confirm →
+Create Invoice. Việc của các module tự viết là thêm phần CRM chuẩn **không
+có sẵn** cho đúng quy trình bán hàng thật của mình (giai đoạn riêng, trường
+dữ liệu riêng, cảnh báo riêng).
 
 ## Cấu trúc
 
 ```
 addons/
-  erp_customize_base/    ← module khởi điểm (model + view + menu mẫu)
+  erp_customize_base/    ← nền dùng chung (mở rộng res.partner)
+  erp_customize_crm/     ← trọng tâm: tuỳ biến crm.lead
 config/
   odoo.conf               ← cấu hình Odoo, mount vào /etc/odoo/odoo.conf
 docker-compose.yml
@@ -32,13 +57,16 @@ Image `odoo:19.0` đã có sẵn TOÀN BỘ mã nguồn Community bên trong con
 **Không bao giờ sửa trực tiếp core** — luôn viết addon module trong
 `addons/` rồi Odoo nạp chồng lên lúc chạy. Hai cách:
 
-1. **Kế thừa model/view có sẵn** — dùng khi Community đã có sẵn khái niệm,
-   chỉ cần thêm trường/logic. Ví dụ đã có trong `erp_customize_base`:
-   `models/res_partner.py` (`_inherit = 'res.partner'`) +
-   `views/res_partner_views.xml` (kế thừa `base.view_partner_form` bằng
-   `xpath`, chèn thêm một trường mà không đụng file gốc).
-2. **Tạo model mới hoàn toàn** — dùng khi nghiệp vụ chưa tồn tại trong
-   Community. Ví dụ: `models/demo_item.py`.
+**Kế thừa model/view có sẵn** là cách chuẩn — gần như mọi tuỳ biến CRM/Sales
+đều rơi vào nhóm này vì Community đã có sẵn khái niệm, chỉ cần thêm
+trường/logic. Hai ví dụ đang có trong repo:
+- `erp_customize_base/models/res_partner.py` (`_inherit = 'res.partner'`) +
+  view kế thừa `base.view_partner_form` bằng `xpath`
+- `erp_customize_crm/models/crm_lead.py` (`_inherit = 'crm.lead'`, thêm
+  `days_in_stage`) + view kế thừa `crm.crm_lead_view_form`
+
+Chỉ tạo **model mới hoàn toàn** khi nghiệp vụ chưa tồn tại trong Community
+(ví dụ một quy trình duyệt nội bộ đặc thù không map được vào Lead/Order nào).
 
 **Đọc mã nguồn gốc để biết field/view nào mà kế thừa** — không cần clone
 vào repo này:
