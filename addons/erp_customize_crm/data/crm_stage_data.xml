@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Hai giai đoạn MỚI chen vào pipeline 4 bước mặc định của Odoo, theo
+         đúng khuyến nghị thực hành B2B (nguồn: Salesforce/HubSpot/thực
+         hành pipeline 2026): 5-7 giai đoạn là chuẩn — dưới 5 thì quá thô,
+         trên 8 thì nhân viên không phân biệt nổi hai giai đoạn cạnh nhau.
+         Mỗi giai đoạn có "requirements" (Odoo dùng field này làm tiêu chí
+         thoát, hiện tooltip khi nhóm theo giai đoạn) — QUAN SÁT ĐƯỢC, gắn
+         với hành động cụ thể của khách, không phải cảm tính "có vẻ quan
+         tâm". Bốn giai đoạn gốc của Odoo (crm.stage_lead1-4) được đổi tên
+         + set requirements/rotting_threshold_days ở post_init_hook, không
+         phải ở đây — chúng thuộc sở hữu module `crm`. -->
+    <record id="stage_needs_analysis" model="crm.stage">
+        <field name="name">Khảo sát yêu cầu</field>
+        <field name="sequence">3</field>
+        <field name="requirements">Đã khảo sát/demo với khách, yêu cầu cụ thể đã ghi thành văn bản, đã tiếp cận được người có thẩm quyền quyết định.</field>
+        <field name="rotting_threshold_days">14</field>
+    </record>
+    <record id="stage_negotiation" model="crm.stage">
+        <field name="name">Đàm phán</field>
+        <field name="sequence">5</field>
+        <field name="requirements">Đã đạt thoả thuận miệng về điều khoản chính, đang chuyển sang khâu hợp đồng/pháp lý.</field>
+        <field name="rotting_threshold_days">10</field>
+    </record>
+</odoo>

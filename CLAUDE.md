@@ -113,11 +113,12 @@ từng app.
 
 | Tính năng "CRM tiên tiến" | Trong Odoo Community | Đã làm |
 |---|---|---|
-| Cảnh báo deal đọng lâu (rotting — nổi tiếng ở Pipedrive) | Có sẵn (`crm.stage.rotting_threshold_days`) nhưng mặc định TẮT (0 mọi giai đoạn) | Bật 7/14/21 ngày cho New/Qualified/Proposition qua `post_init_hook` |
+| Cảnh báo deal đọng lâu (rotting — nổi tiếng ở Pipedrive) | Có sẵn (`crm.stage.rotting_threshold_days`) nhưng mặc định TẮT (0 mọi giai đoạn) | Bật theo dữ liệu B2B thật, khác nhau từng giai đoạn — xem mục 6 |
 | Chấm điểm lead tự động (lead scoring) | Có sẵn miễn phí, Naive Bayes học từ lịch sử thắng/thua | Không cần làm gì — cần đủ dữ liệu lịch sử để nó học |
 | Phát hiện lead trùng lặp | Có sẵn (email/SĐT/công ty, smart button) | Không cần làm gì |
 | Phễu Lead → Opportunity 2 bước | Có sẵn nhưng mặc định TẮT | Bật (`group_use_lead`) qua `post_init_hook` |
 | Người giới thiệu cụ thể (referral) | KHÔNG có — UTM chỉ ghi kênh marketing, không ghi người | Field mới `referred_by_partner_id` trên `crm.lead` |
+| Pipeline 4 giai đoạn quá thô | Chuẩn thực hành B2B là 5-7 giai đoạn | Thiết kế lại 6 giai đoạn + tự động hoá "phản hồi tức thì" — xem mục 6 |
 
 **Cố ý CHƯA bật:** Recurring Revenue (`group_use_recurring_revenues`), Rule-based Assignment
 (`crm_use_auto_assignment`) — cả hai là quyết định đặc thù mô hình kinh doanh (bán gói định kỳ?
@@ -125,44 +126,75 @@ cơ cấu đội sale ra sao?), chưa có câu trả lời thật từ chủ d�
 
 **Field/view đã xác minh trên source Odoo 19 thật** (không đoán — xem mục 2.B):
 `crm.lead.date_last_stage_update`, `crm.stage.rotting_threshold_days`,
-`res_config_settings.group_use_lead`, view `crm.crm_lead_view_form` + group `opportunity_partner`.
+`res_config_settings.group_use_lead`, view `crm.crm_lead_view_form` + group `opportunity_partner`,
+`mail.activity.mixin.activity_schedule()`, xmlid `mail.mail_activity_data_call`.
+
+## 6. Pipeline 6 giai đoạn — thiết kế theo dữ liệu B2B thật (10/09/2026)
+
+Chốt sau khi được chủ dự án yêu cầu "tự phân tích dữ liệu thật và thiết kế một business tốt" —
+tra thực hành B2B 2026 (5-7 giai đoạn là chuẩn) và khảo sát HBR trên 2.241 công ty Mỹ về tốc độ
+phản hồi lead trước khi định số, không đoán theo cảm tính.
+
+**Phát hiện đổi hẳn thiết kế:** liên hệ trong GIỜ ĐẦU tăng 7 lần khả năng nói chuyện được người
+quyết định; chờ quá 24 GIỜ thì khả năng đủ điều kiện giảm 60 LẦN; 78% khách B2B mua của bên phản
+hồi ĐẦU TIÊN. → "Lead mới" phải có ngưỡng đọng chặt nhất (1 ngày, không phải 7 ngày như bản nháp
+đầu — đó là số đoán, không phải số có căn cứ) và phải có tự động hoá, không chỉ cảnh báo tĩnh.
+
+| # | Giai đoạn | rotting_threshold_days | Nguồn |
+|---|---|---|---|
+| 1 | Lead mới | **1** | crm.stage_lead1 (đổi tên) |
+| 2 | Đã xác nhận nhu cầu | 10 | crm.stage_lead2 (đổi tên) |
+| 3 | Khảo sát yêu cầu | 14 | `data/crm_stage_data.xml` (record mới) |
+| 4 | Đã gửi báo giá | 14 | crm.stage_lead3 (đổi tên, sequence 3→4) |
+| 5 | Đàm phán | 10 | `data/crm_stage_data.xml` (record mới) |
+| 6 | Chốt thắng | 0 (tắt) | crm.stage_lead4 (đổi tên) |
+
+**Tự động hoá:** `crm_lead.py` override `create()` → mọi lead/opportunity mới tự sinh activity
+"Gọi ngay" (`mail.mail_activity_data_call`), hạn hôm nay, gán `user_id` (hoặc người tạo nếu
+chưa gán). Đây là phần quan trọng nhất của thiết kế này — biến số liệu thành HÀNH VI hệ thống,
+không chỉ hiển thị cảnh báo mà trông chờ người dùng tự nhớ kiểm tra.
+
+**4 giai đoạn gốc của Odoo giữ nguyên record (đổi tên qua `post_init_hook`), không xoá** — xoá
+record thuộc module khác là hỏng liên kết ngược của mọi dữ liệu cũ trỏ vào nó. 2 giai đoạn mới
+là record hoàn toàn mới, module này sở hữu.
+
+✅ **Đã chạy thật (10/09/2026):** xoá `testdb`, cài lại từ đầu (bắt buộc — `post_init_hook` chỉ
+chạy lúc cài mới, không chạy lúc `-u`). Kiểm qua `odoo shell`: 6 giai đoạn đúng thứ tự/ngưỡng/tên/
+tiêu chí thoát · tạo lead thật → activity "Gọi ngay" tự sinh đúng, hạn hôm nay, tóm tắt đúng nội
+dung đã viết trong code.
 
 ---
 
 ## 🔖 BÀN GIAO — đọc mục này trước khi làm tiếp
 
-**Điểm dừng (phiên 10/09/2026):** Toàn bộ mã đã push lên `main` + `develop` (đồng bộ, commit
-`7af197e`). `staging`/`production` cố ý đứng ở commit trước (`28fed77`).
+**Điểm dừng (phiên 10/09/2026, cập nhật 2):** Toàn bộ mã ĐANG chờ commit (xem lệnh ở cuối mục
+này) — code đã viết và **đã chạy thật xong**, nhưng thời điểm ghi dòng này chưa push. Nếu bạn
+đọc thấy dòng này mà `git log` đã có commit "pipeline 6 giai đoạn" thì tức là đã push, có thể
+xoá cảnh báo này.
 
-**✅ Đã chạy thật (10/09/2026) — không dùng `make up`/web wizard mà cài thẳng qua CLI để kiểm
-chứng lặp lại được:**
-```bash
-docker compose exec -T odoo odoo -c /etc/odoo/odoo.conf -d testdb \
-  -i erp_customize_crm --stop-after-init --without-demo=all
-```
-Kết quả: **65 module cài sạch, 0 lỗi**, "Registry loaded in 41.975s". Kiểm cả 5 điều đã nêu
-(qua `odoo shell`, không phải đọc mã đoán):
+**✅ Đã chạy thật LẦN 2 (10/09/2026) — pipeline 6 giai đoạn + tự động hoá "phản hồi tức thì":**
+`testdb` bị XOÁ và cài lại từ đầu (bắt buộc — `post_init_hook` chỉ chạy lúc cài mới, không chạy
+lúc `-u`). Kết quả qua `odoo shell` — xem chi tiết đầy đủ ở mục 6:
+- 6 giai đoạn đúng thứ tự/tên/ngưỡng đọng/tiêu chí thoát: `1 → Lead mới(1d) → Đã xác nhận nhu
+  cầu(10d) → Khảo sát yêu cầu(14d) → Đã gửi báo giá(14d) → Đàm phán(10d) → Chốt thắng(0, is_won)`
+- Tạo một `crm.lead` thật → activity "Gọi ngay" (`mail.mail_activity_data_call`) tự sinh, hạn
+  đúng hôm nay, tóm tắt đúng nội dung code — xoá dọn xong
 
-| # | Kiểm | Kết quả |
-|---|---|---|
-| 1 | `env.user.has_group('crm.group_use_lead')` | `True` |
-| 2 | `rotting_threshold_days` của stage_lead1/2/3/4 | `7 / 14 / 21 / 0` — đúng thiết kế |
-| 3 | `referred_by_partner_id` có trong `crm.lead._fields` | `True` |
-| 4 | `internal_reference` có trong `res.partner._fields` | `True` |
-| 5 | `ir.module.module` state của cả 6 module liên quan | `installed` hết |
-
-**Thêm một bước CRUD thật qua ORM** (không chỉ kiểm field tồn tại): tạo `res.partner` với
-`internal_reference='REF-001'` → tạo `crm.lead` gắn `referred_by_partner_id` trỏ vào đó → đọc
-lại đúng cả hai chiều → `lead.stage_id.rotting_threshold_days == 7` (stage New) → xoá dọn sạch.
-Xác nhận thêm: `curl http://localhost:8069/web/login` → HTTP 200.
+**Lần chạy trước đó (cùng ngày, trước khi thiết kế lại pipeline)** cũng đã xác nhận sạch: 65
+module cài không lỗi, `group_use_lead=True`, hai field mới tồn tại đúng model, CRUD qua ORM
+đúng cả hai chiều, `curl /web/login` → HTTP 200.
 
 **Việc tiếp theo:**
-1. Quyết `stock` (Inventory) — có hàng hoá vật lý cần giao hay dịch vụ thuần? Nếu có hàng hoá:
+1. `git add -A && git commit` cho pipeline 6 giai đoạn nếu chưa commit (kiểm bằng `git status`
+   trước — đây là việc ĐẦU TIÊN nếu đang đọc file này ở một phiên mới).
+2. Quyết `stock` (Inventory) — có hàng hoá vật lý cần giao hay dịch vụ thuần? Nếu có hàng hoá:
    thêm `stock` vào `depends` của `erp_customize_crm` hoặc module riêng.
-2. Nhờ chủ dự án cho biết quy trình bán hàng thật (mấy giai đoạn? tên gì?) để đổi 4 giai đoạn
-   mặc định (New/Qualified/Proposition/Won) nếu cần — hiện đang giữ nguyên mặc định của Odoo.
-3. Trả lời được thì mới bật Recurring Revenue / Rule-based Assignment (xem mục 5).
-4. Bật branch protection cho `develop`/`staging`/`production` trên GitHub web UI (mục 1).
+3. Pipeline 6 giai đoạn hiện là **thiết kế tổng quát dựa trên thực hành B2B chung** — chưa phải
+   quy trình đặc thù của chủ dự án. Khi có mô tả quy trình thật, so sánh và điều chỉnh tên/số
+   giai đoạn, KHÔNG giữ nguyên chỉ vì "đã chạy được".
+4. Trả lời được việc kinh doanh thật thì mới bật Recurring Revenue / Rule-based Assignment
+   (xem mục 5).
+5. Bật branch protection cho `develop`/`staging`/`production` trên GitHub web UI (mục 1).
 
 **File cá nhân/bí mật:** `.env` (đã gitignore, chưa tạo — chỉ có `.env.example`). Không có gì
 khác cần né trong repo này tính tới giờ.

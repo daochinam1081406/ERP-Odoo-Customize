@@ -44,7 +44,7 @@ khỏi làm lại thứ Odoo Community đã có (và thường làm tệ hơn b�
 
 | Tính năng "CRM tiên tiến" | Trong Odoo Community | Việc đã làm |
 |---|---|---|
-| Cảnh báo deal đọng lâu một giai đoạn (rotting — nổi tiếng ở Pipedrive) | **Có sẵn** (`crm.stage.rotting_threshold_days`, hiện ngay trên statusbar) nhưng **mặc định TẮT** (0 ở mọi giai đoạn) | Bật với ngưỡng 7/14/21 ngày theo 3 giai đoạn đầu — không viết field riêng |
+| Cảnh báo deal đọng lâu một giai đoạn (rotting — nổi tiếng ở Pipedrive) | **Có sẵn** (`crm.stage.rotting_threshold_days`, hiện ngay trên statusbar) nhưng **mặc định TẮT** (0 ở mọi giai đoạn) | Bật với ngưỡng theo dữ liệu thật (xem bảng pipeline dưới) — không viết field riêng |
 | Chấm điểm lead tự động (lead scoring — Salesforce/HubSpot tính phí riêng) | **Có sẵn miễn phí**, học bằng Naive Bayes từ lịch sử thắng/thua | Không cần làm gì, chỉ cần đủ dữ liệu lịch sử để nó học |
 | Phát hiện lead trùng lặp | **Có sẵn** (theo email/SĐT/công ty, smart button trên form) | Không cần làm gì |
 | Phễu Lead → Opportunity 2 bước (Salesforce Lead object, HubSpot lifecycle stage) | Có sẵn nhưng **mặc định TẮT** — Odoo đi thẳng vào Opportunity | Bật (`group_use_lead`) — khớp cách CRM tiên tiến tách lead thô khỏi cơ hội đã xác nhận |
@@ -54,6 +54,37 @@ Hai mục đầu (rotting threshold, bật phễu Lead) nằm trong `__init__.py
 `post_init_hook` — chạy bằng ORM chứ không phải XML `<record>`, vì bản ghi
 gốc của module `crm` có thể mang `noupdate="1"` khiến ghi đè qua XML data bị
 bỏ qua trong im lặng lúc cài.
+
+## Pipeline 6 giai đoạn — thiết kế theo dữ liệu B2B thật, không phải 4 giai đoạn mặc định
+
+Tra thực hành B2B 2026 trước khi thiết kế: **5-7 giai đoạn** là chuẩn (dưới 5 quá thô, trên 8
+nhân viên không phân biệt nổi hai giai đoạn cạnh nhau — nguồn: Salesforce, thực hành ngành).
+Tiêu chí thoát mỗi giai đoạn phải **quan sát được, gắn hành động cụ thể của khách** — "có vẻ
+quan tâm" không đạt tiêu chuẩn này.
+
+**Phát hiện quan trọng nhất, đổi hẳn thiết kế:** khảo sát của Harvard Business Review trên 2.241
+công ty Mỹ cho thấy liên hệ lead trong **giờ đầu** tăng **7 lần** khả năng nói chuyện được với
+người quyết định; chờ quá **24 giờ** thì khả năng đủ điều kiện (qualify) giảm **60 lần** — gần
+như về 0 ở thị trường cạnh tranh; và **78%** khách B2B mua của bên phản hồi **đầu tiên**. Đây
+không phải chi tiết UX, là đòn bẩy chuyển đổi lớn nhất trong bán hàng B2B.
+
+| # | Giai đoạn | Tiêu chí thoát (quan sát được) | Ngưỡng đọng |
+|---|---|---|---|
+| 1 | **Lead mới** | Đã liên hệ và xác nhận quan tâm ban đầu — TRONG VÒNG 24 GIỜ | **1 ngày** |
+| 2 | Đã xác nhận nhu cầu | Xác nhận: nhu cầu thật + khoảng ngân sách + người quyết định | 10 ngày |
+| 3 | Khảo sát yêu cầu | Đã khảo sát/demo, yêu cầu ghi thành văn bản, tiếp cận được người quyết định | 14 ngày |
+| 4 | Đã gửi báo giá | Khách xác nhận đã nhận và đang đánh giá theo tiêu chí đã thống nhất | 14 ngày |
+| 5 | Đàm phán | Đạt thoả thuận miệng về điều khoản chính, chuyển sang hợp đồng/pháp lý | 10 ngày |
+| 6 | Chốt thắng | — | (tắt) |
+
+**Tự động hoá thay vì chỉ cảnh báo:** `crm_lead.py` override `create()` — mọi lead/opportunity
+mới vào hệ thống **tự sinh ngay một activity "Gọi ngay"**, hạn hôm nay, gán cho nhân viên phụ
+trách (hoặc người tạo nếu chưa gán). Không trông chờ ai nhớ mở CRM lên kiểm tra — đúng phát hiện
+"78% mua của bên phản hồi đầu tiên" ở trên.
+
+Bốn giai đoạn gốc của Odoo (New/Qualified/Proposition/Won) được **đổi tên + set tiêu chí thoát +
+ngưỡng** qua `post_init_hook`, không xoá — hai giai đoạn mới ("Khảo sát yêu cầu", "Đàm phán")
+thêm bằng `data/crm_stage_data.xml`.
 
 **Cố ý CHƯA bật:** Recurring Revenue (MRR) và Rule-based Assignment — cả hai
 đều có sẵn nhưng là quyết định **đặc thù mô hình kinh doanh** (có bán theo

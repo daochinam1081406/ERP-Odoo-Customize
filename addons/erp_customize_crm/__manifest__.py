@@ -11,6 +11,7 @@
     # Lead → Opportunity → Quotation → Invoice mà không cần tự viết cầu nối.
     'depends': ['crm', 'sale_crm', 'erp_customize_base'],
     'data': [
+        'data/crm_stage_data.xml',
         'views/crm_lead_views.xml',
     ],
     'post_init_hook': 'post_init_hook',
