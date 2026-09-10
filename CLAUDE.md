@@ -131,34 +131,32 @@ cơ cấu đội sale ra sao?), chưa có câu trả lời thật từ chủ d�
 
 ## 🔖 BÀN GIAO — đọc mục này trước khi làm tiếp
 
-**Điểm dừng (phiên 09/09/2026):** Toàn bộ mã đã push lên `main` + `develop` (đồng bộ, commit
-`6399164`). `staging`/`production` cố ý đứng ở commit trước (`28fed77`).
+**Điểm dừng (phiên 10/09/2026):** Toàn bộ mã đã push lên `main` + `develop` (đồng bộ, commit
+`7af197e`). `staging`/`production` cố ý đứng ở commit trước (`28fed77`).
 
-**⚠️ CHƯA CHẠY THỬ TRÊN ODOO THẬT — đây là việc quan trọng nhất còn lại.** Mọi kiểm chứng tới
-giờ chỉ là tĩnh: `python3 -m py_compile` cho từng file `.py`, và `xml.etree.ElementTree.parse`
-cho từng file `.xml` — cả hai chỉ bắt lỗi cú pháp, **không** bắt được: external ID tham chiếu sai
-(`inherit_id`, `xpath`), field không tồn tại trên model, lỗi `depends` thiếu, `post_init_hook`
-chạy sai (vd. `env.ref()` không tìm thấy do sai id). Đúng nguyên tắc dự án chị/anh vẫn áp dụng ở
-D-Pro: **"chạy thật mới biết, build xanh không có nghĩa gì"**.
-
-**Việc đầu tiên của phiên tiếp theo (hoặc phiên này nếu còn context):**
+**✅ Đã chạy thật (10/09/2026) — không dùng `make up`/web wizard mà cài thẳng qua CLI để kiểm
+chứng lặp lại được:**
 ```bash
-cd /Users/daochinam/allinone/ERP-Odoo-Customize
-cp .env.example .env
-make up && make logs
+docker compose exec -T odoo odoo -c /etc/odoo/odoo.conf -d testdb \
+  -i erp_customize_crm --stop-after-init --without-demo=all
 ```
-Rồi vào `http://localhost:8069` → tạo DB → cài `erp_customize_crm` → kiểm:
-1. Cài không lỗi (đặc biệt `post_init_hook` chạy xong không exception)
-2. Vào Settings → CRM: đã bật "Leads" (`group_use_lead`) chưa
-3. Mở một giai đoạn Pipeline (Cấu hình → Giai đoạn): New/Qualified/Proposition có
-   `rotting_threshold_days` = 7/14/21 chưa
-4. Mở form một Opportunity: có field "Được giới thiệu bởi" ngay sau "Liên hệ" chưa
-5. Contacts: mở một liên hệ, có field "Mã nội bộ" chưa
+Kết quả: **65 module cài sạch, 0 lỗi**, "Registry loaded in 41.975s". Kiểm cả 5 điều đã nêu
+(qua `odoo shell`, không phải đọc mã đoán):
 
-Nếu cả 5 đều đúng → cập nhật dòng "⚠️ CHƯA CHẠY THỬ" ở trên thành "✅ Đã chạy thật (ngày...)"
-kèm kết quả. Nếu có gì sai → sửa, KHÔNG được để nguyên rồi coi như đã xong.
+| # | Kiểm | Kết quả |
+|---|---|---|
+| 1 | `env.user.has_group('crm.group_use_lead')` | `True` |
+| 2 | `rotting_threshold_days` của stage_lead1/2/3/4 | `7 / 14 / 21 / 0` — đúng thiết kế |
+| 3 | `referred_by_partner_id` có trong `crm.lead._fields` | `True` |
+| 4 | `internal_reference` có trong `res.partner._fields` | `True` |
+| 5 | `ir.module.module` state của cả 6 module liên quan | `installed` hết |
 
-**Việc tiếp theo sau khi chạy thử qua:**
+**Thêm một bước CRUD thật qua ORM** (không chỉ kiểm field tồn tại): tạo `res.partner` với
+`internal_reference='REF-001'` → tạo `crm.lead` gắn `referred_by_partner_id` trỏ vào đó → đọc
+lại đúng cả hai chiều → `lead.stage_id.rotting_threshold_days == 7` (stage New) → xoá dọn sạch.
+Xác nhận thêm: `curl http://localhost:8069/web/login` → HTTP 200.
+
+**Việc tiếp theo:**
 1. Quyết `stock` (Inventory) — có hàng hoá vật lý cần giao hay dịch vụ thuần? Nếu có hàng hoá:
    thêm `stock` vào `depends` của `erp_customize_crm` hoặc module riêng.
 2. Nhờ chủ dự án cho biết quy trình bán hàng thật (mấy giai đoạn? tên gì?) để đổi 4 giai đoạn
