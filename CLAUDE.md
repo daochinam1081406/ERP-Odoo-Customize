@@ -163,38 +163,83 @@ chạy lúc cài mới, không chạy lúc `-u`). Kiểm qua `odoo shell`: 6 gia
 tiêu chí thoát · tạo lead thật → activity "Gọi ngay" tự sinh đúng, hạn hôm nay, tóm tắt đúng nội
 dung đã viết trong code.
 
+## 7. Đánh giá "đủ enterprise chưa" (13/09/2026) + bộ kiểm thử tự động
+
+**Chưa đủ.** Đây là MVP kỹ thuật vững (đúng kiến trúc, tận dụng đúng tính năng có sẵn), nhưng mới
+phục vụ một người dùng trên một máy. Ba khoảng trống nặng nhất: (1) không có kênh lead thật chảy
+vào — chỉ tạo tay/CLI, (2) chưa có ≥2 người dùng thật với phân quyền đã kiểm chứng ở quy mô, (3)
+chưa triển khai ra khỏi Docker cục bộ (không HTTPS, không backup, 1 process/không cấu hình
+worker). Đã quyết KHÔNG viết `ir.rule` riêng cho phân quyền — cơ chế có sẵn của Odoo
+(`sales_team.group_sale_salesman` + rule "Personal Leads") đã đúng, chỉ cần **kiểm và khoá lại
+bằng test**, không cần viết thêm.
+
+**Bộ kiểm thử tự động: `addons/erp_customize_crm/tests/test_crm_lead.py`** — 7 test, **7/7 đạt**
+(xác nhận 13/09/2026). Khoá lại cả logic mới viết LẪN hành vi có sẵn của Odoo đang dựa vào:
+
+| Test | Khoá lại điều gì |
+|---|---|
+| `test_referred_by_partner_id_roundtrip` | Field mới ghi/đọc đúng |
+| `test_pipeline_has_six_stages_in_order` | 6 giai đoạn, đúng tên, đúng thứ tự |
+| `test_first_stage_has_tightest_rotting_threshold` | "Lead mới" = ngưỡng chặt nhất (1 ngày) — con số có căn cứ, không phải đoán |
+| `test_won_stage_has_no_rotting_threshold` | Giai đoạn chốt không mang khái niệm "đọng" |
+| `test_create_schedules_first_contact_activity` | Cơ chế tự động hoá quan trọng nhất — activity "Gọi ngay" tự sinh |
+| `test_bare_internal_user_has_no_crm_access_by_default` | Đóng mặc định — nhân viên chưa gán quyền Sales thì 0 quyền truy cập |
+| `test_salesperson_cannot_see_colleague_opportunity` | Cách ly dữ liệu giữa các nhân viên — cơ chế CÓ SẴN của Odoo, khoá lại để không ai vô tình phá |
+
+**⚠️ BẪY CHẠY TEST — `--test-enable` cố mở cổng 8069 DÙ ĐÃ CÓ `--no-http`.** Container chính
+(`erp-odoo-customize-odoo-1`) đã chiếm cổng đó; `docker compose exec` vào container đang sống sẽ
+đụng độ ngay cả khi khai `--no-http`. Cách đúng: chạy trong container TẠM THỜI riêng, không có
+container đang sống nào tranh cổng:
+```bash
+docker compose run --rm odoo odoo server -c /etc/odoo/odoo.conf -d test_ci \
+  -i erp_customize_crm --test-enable --test-tags=/erp_customize_crm \
+  --stop-after-init --without-demo=True
+# Dọn sau khi chạy xong:
+docker compose exec -T db psql -U odoo -d postgres -c "DROP DATABASE IF EXISTS test_ci;"
+```
+
+**⚠️ BẪY ĐỔI TÊN FIELD Ở ODOO 19 — tài liệu/tutorial cũ sẽ chỉ sai:**
+- `res.users.groups_id` → **`group_ids`**
+- `res.groups.category_id` → **`privilege_id`**; `res.groups.users` → **`user_ids`**
+- CLI không còn phẳng — có subcommand: `odoo server ...`, `odoo shell ...`, `odoo module ...`
+  (chạy `odoo -d ... -i ...` không khai subcommand vẫn ngầm hiểu là `server`, nhưng khai tường
+  minh an toàn hơn khi kết hợp nhiều cờ)
+
+**✅ Đã xác nhận:** `l10n_vn` (bản địa hoá kế toán VN) có sẵn trong image, cài sạch khi
+`company.country_id` = Việt Nam — không cần làm gì thêm, chỉ cần set quốc gia công ty đúng lúc
+onboarding rồi cài module.
+
 ---
 
 ## 🔖 BÀN GIAO — đọc mục này trước khi làm tiếp
 
-**Điểm dừng (phiên 10/09/2026, cập nhật 2):** Toàn bộ mã ĐANG chờ commit (xem lệnh ở cuối mục
-này) — code đã viết và **đã chạy thật xong**, nhưng thời điểm ghi dòng này chưa push. Nếu bạn
-đọc thấy dòng này mà `git log` đã có commit "pipeline 6 giai đoạn" thì tức là đã push, có thể
-xoá cảnh báo này.
+**Điểm dừng (phiên 13/09/2026):** Bộ kiểm thử tự động (7 test) đã viết và **chạy PASS thật**
+(7/7, xem mục 7) — nhưng thời điểm ghi dòng này CHƯA commit/push (xem lệnh ở cuối mục). Nếu
+`git log` đã có commit nhắc tới "test_crm_lead" thì đã xong bước đó, xoá cảnh báo này.
 
-**✅ Đã chạy thật LẦN 2 (10/09/2026) — pipeline 6 giai đoạn + tự động hoá "phản hồi tức thì":**
-`testdb` bị XOÁ và cài lại từ đầu (bắt buộc — `post_init_hook` chỉ chạy lúc cài mới, không chạy
-lúc `-u`). Kết quả qua `odoo shell` — xem chi tiết đầy đủ ở mục 6:
-- 6 giai đoạn đúng thứ tự/tên/ngưỡng đọng/tiêu chí thoát: `1 → Lead mới(1d) → Đã xác nhận nhu
-  cầu(10d) → Khảo sát yêu cầu(14d) → Đã gửi báo giá(14d) → Đàm phán(10d) → Chốt thắng(0, is_won)`
-- Tạo một `crm.lead` thật → activity "Gọi ngay" (`mail.mail_activity_data_call`) tự sinh, hạn
-  đúng hôm nay, tóm tắt đúng nội dung code — xoá dọn xong
+**✅ Đã chạy thật (13/09/2026):**
+- Xác nhận cơ chế phân quyền CÓ SẴN của Odoo đủ tốt cho nhiều người dùng — không cần viết
+  `ir.rule` riêng (mục 7)
+- Viết + chạy PASS 7/7 test tự động, khoá lại toàn bộ hành vi cốt lõi (pipeline, tự động hoá,
+  phân quyền)
+- Xác nhận `l10n_vn` cài sạch khi company country = Việt Nam
 
-**Lần chạy trước đó (cùng ngày, trước khi thiết kế lại pipeline)** cũng đã xác nhận sạch: 65
-module cài không lỗi, `group_use_lead=True`, hai field mới tồn tại đúng model, CRUD qua ORM
-đúng cả hai chiều, `curl /web/login` → HTTP 200.
+**Lần chạy trước (10/09/2026):** pipeline 6 giai đoạn + activity "Gọi ngay" — xem mục 6.
 
 **Việc tiếp theo:**
-1. `git add -A && git commit` cho pipeline 6 giai đoạn nếu chưa commit (kiểm bằng `git status`
-   trước — đây là việc ĐẦU TIÊN nếu đang đọc file này ở một phiên mới).
+1. `git add -A && git commit` cho bộ test + các phát hiện mục 7 nếu chưa commit (kiểm
+   `git status` trước — việc ĐẦU TIÊN nếu đang đọc file này ở phiên mới).
 2. Quyết `stock` (Inventory) — có hàng hoá vật lý cần giao hay dịch vụ thuần? Nếu có hàng hoá:
    thêm `stock` vào `depends` của `erp_customize_crm` hoặc module riêng.
 3. Pipeline 6 giai đoạn hiện là **thiết kế tổng quát dựa trên thực hành B2B chung** — chưa phải
    quy trình đặc thù của chủ dự án. Khi có mô tả quy trình thật, so sánh và điều chỉnh tên/số
    giai đoạn, KHÔNG giữ nguyên chỉ vì "đã chạy được".
-4. Trả lời được việc kinh doanh thật thì mới bật Recurring Revenue / Rule-based Assignment
+4. Ba khoảng trống enterprise nặng nhất còn lại (mục 7): kênh lead thật chảy vào (web form/email),
+   triển khai ra khỏi Docker cục bộ an toàn (HTTPS/backup/workers), tích hợp Zalo/WhatsApp/SMTP
+   thật — cả ba đều cần tài khoản/hạ tầng bên ngoài chưa có ở đây.
+5. Trả lời được việc kinh doanh thật thì mới bật Recurring Revenue / Rule-based Assignment
    (xem mục 5).
-5. Bật branch protection cho `develop`/`staging`/`production` trên GitHub web UI (mục 1).
+6. Bật branch protection cho `develop`/`staging`/`production` trên GitHub web UI (mục 1).
 
 **File cá nhân/bí mật:** `.env` (đã gitignore, chưa tạo — chỉ có `.env.example`). Không có gì
 khác cần né trong repo này tính tới giờ.

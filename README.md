@@ -141,6 +141,22 @@ vào repo này:
 | `make psql` | vào psql của DB |
 | `make update MODULE=<tên> DB=<db>` | nâng cấp một module sau khi sửa code |
 
+## Kiểm thử tự động
+
+`addons/erp_customize_crm/tests/test_crm_lead.py` — khoá lại pipeline, cơ chế tự động hoá, và
+cả hành vi phân quyền có sẵn của Odoo đang dựa vào. Chạy:
+
+```bash
+docker compose run --rm odoo odoo server -c /etc/odoo/odoo.conf -d test_ci \
+  -i erp_customize_crm --test-enable --test-tags=/erp_customize_crm \
+  --stop-after-init --without-demo=True
+docker compose exec -T db psql -U odoo -d postgres -c "DROP DATABASE IF EXISTS test_ci;"
+```
+
+**⚠️ Bắt buộc `docker compose run` (container tạm riêng), không `docker compose exec` vào
+container đang chạy** — `--test-enable` cố mở cổng 8069 dù có `--no-http`, đụng độ với tiến
+trình Odoo chính đang giữ cổng đó trong cùng container.
+
 ## Luồng nhánh (Git flow)
 
 Bốn nhánh dài hạn, promote một chiều — chưa có production thật nhưng dựng
